@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('myapp:server');
+var http = require('http');
+
+/**
+ * Get port from environment and store in Express.
+ */
+ const EventEmitter = require('node:events');
+
+ class MyEmitter extends EventEmitter {}
+
+let m = new Map()
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+var server = http.createServer(app);
+var {WebSocketServer } = require('ws');
+
+
+const wss = new WebSocketServer({server});
+
+wss.on('connection', function connection(ws) {
+  ws.wsemit = wsemit.bind(ws)
+  ws.on('message', function message(data) {
+
+    // 这里处理ack消息
+    try {
+      data = JSON.parse(data)
+    } catch(err) {}
+    if(typeof data === 'object' && data.type === 'ack') {
+      if(m.has(data.id)) {
+        const event = m.get(data.id)
+        event.emit('success')
+        m.delete(data.id)
+      }
+      return
+    }
+
+
+
+
+    ws.wsemit('please ack '+data, (msg) => {
+      console.log('收到ack消息：',msg)
+    }, (msg,intervalTime) => {
+      console.log('没有收到ack：',intervalTime,msg)
+    }, 5000)
+  });
+
+  ws.send('connection success');
+});
+
+// wsemit方法可传入 msg  successcb failcb intervalTime
+function wsemit(msg, successcb, failcb, intervalTime = 3000) {
+  const myEmitter = new MyEmitter();
+  const id = new Date().getTime()
+  m.set(id, myEmitter)
+  this.send(JSON.stringify({type:'ack',id ,data:msg}))
+  const timer = setTimeout(() => {
+    m.delete(id)
+    failcb(msg, intervalTime)
+  }, intervalTime)
+  myEmitter.on('success', () => {
+    clearTimeout(timer)
+    successcb(msg)
+  })
+}
+
+
+
+
+
+
+
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+  console.log('Listening on ' + bind)
+
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <input type="text" id="shuru">
+    <button id="btn">提交</button>
+  </head>
+  <body>
+    <script>
+      const socket = new WebSocket("ws://localhost:3000");
+
+      // Connection opened
+      socket.addEventListener("open", function (event) {
+        socket.send("Hello Server!");
+      });
+
+      // Listen for messages
+      socket.addEventListener("message", function (event) {
+        // console.log("Message from server ", event.data);
+        let data = event.data;
+        try {
+          data = JSON.parse(event.data)
+        } catch(err) {}
+
+
+        //当接收到需要ack的消息时,发送返回
+        if(typeof data === 'object' && data.type === 'ack') {
+          if(data.data === 'please ack no ack') return
+          socket.send(JSON.stringify({id: data.id,type: "ack"}))
+        }
+      });
+      document.getElementById('btn').onclick=function() {
+        const val = document.getElementById('shuru').value
+        socket.send(val)
+      }
+    </script>
+  </body>
+</html>
